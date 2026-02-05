@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const BASE_URL = "http://10.20.6.251:3000/api";
+const BASE_URL = "https://shop-syra-backend.vercel.app/api";
 
 export const api = axios.create({
   baseURL: BASE_URL,
