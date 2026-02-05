@@ -1,24 +1,40 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
-
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Stack, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import "../global.css";
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
+  const router = useRouter();
+
+  useEffect(() => {
+    checkLogin();
+  }, []);
+
+  const checkLogin = async () => {
+    try {
+      const auth = await AsyncStorage.getItem("isAuthenticated");
+      const seller = await AsyncStorage.getItem("seller");
+      if (auth === "true" && seller) {
+        setIsAuthenticated(true);
+        router.replace("/(tabs)");
+      } else {
+        setIsAuthenticated(false);
+        router.replace("/(auth)/signin");
+      }
+    } catch (error: any) {
+      console.error("Error checking login:", error);
+      router.replace("/(auth)/signin");
+    }
+  };
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        animation: "slide_from_right",
+        animationTypeForReplace: "push",
+      }}
+    />
   );
 }
