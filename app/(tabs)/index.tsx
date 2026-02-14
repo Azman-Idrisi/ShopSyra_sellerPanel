@@ -45,7 +45,7 @@ export default function Home() {
         const allProducts: Product[] = res.data?.products ?? [];
         const filtered = currentSeller?._id
           ? allProducts.filter(
-              (product) => product.seller === currentSeller._id
+              (product) => product.seller === currentSeller._id,
             )
           : [];
         setProducts(filtered);
@@ -65,7 +65,7 @@ export default function Home() {
     const totalSold = products.reduce((sum, p) => sum + (p.soldCount ?? 0), 0);
     const revenue = products.reduce(
       (sum, p) => sum + (p.price ?? 0) * (p.soldCount ?? 0),
-      0
+      0,
     );
 
     return { totalProducts, totalStock, totalSold, revenue };

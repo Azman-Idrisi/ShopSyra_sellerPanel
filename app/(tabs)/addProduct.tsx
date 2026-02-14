@@ -13,8 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "../../api/client";
-
-
+import { router } from "expo-router";
 
 type ImageItem = {
   uri: string;
@@ -64,7 +63,6 @@ export default function AddProduct() {
     setColor("");
   }
 
-
   const uploadImage = async (uri: string) => {
     const formData = new FormData();
 
@@ -74,15 +72,25 @@ export default function AddProduct() {
       type: "image/jpeg",
     } as any);
 
-    const res = await fetch("http://10.20.6.251:3000/api/upload/uploadimage", {
+    const uploadEndpoint = `${api.defaults.baseURL}/upload/uploadimage`;
+    const res = await fetch(uploadEndpoint, {
       method: "POST",
       body: formData,
     });
 
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(
+        `Upload failed (${res.status}): ${errorText || "Unknown server error"}`,
+      );
+    }
+
     const data = await res.json();
+    if (!data?.url) {
+      throw new Error("Upload succeeded but no image URL returned.");
+    }
     return data.url;
   };
-  
 
   const addImages = async (uris: string[]) => {
     const remaining = maxImages - images.length;
@@ -102,7 +110,7 @@ export default function AddProduct() {
     setUploading(true);
     try {
       const uploadedUrls = await Promise.all(
-        toAdd.map((uri) => uploadImage(uri))
+        toAdd.map((uri) => uploadImage(uri)),
       );
 
       setImages((prev) =>
@@ -112,10 +120,12 @@ export default function AddProduct() {
           }
           const url = uploadedUrls[index - startIndex];
           return { ...item, url, uploading: false };
-        })
+        }),
       );
     } catch (error) {
-      Alert.alert("Upload failed", "Please try again.");
+      const message =
+        error instanceof Error ? error.message : "Please try again.";
+      Alert.alert("Upload failed", message);
       setImages((prev) => prev.filter((_, index) => index < startIndex));
     } finally {
       setUploading(false);
@@ -124,15 +134,15 @@ export default function AddProduct() {
 
   const pickFromGallery = async () => {
     try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const permission =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
         Alert.alert("Permission required", "Please allow photo access.");
         return;
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
+        mediaTypes: ["images"],
         quality: 0.7,
         allowsMultipleSelection: true,
         selectionLimit: maxImages,
@@ -155,7 +165,7 @@ export default function AddProduct() {
       }
 
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ["images"],
         allowsEditing: true,
         quality: 0.7,
       });
@@ -187,7 +197,7 @@ export default function AddProduct() {
         category,
         price,
         stock,
-        variants: [{ size, color, stock }],
+        variants: [{ size, stock }],
         imgUrls: images.map((image) => image.url).filter(Boolean),
       };
       const res = await api.post("/product/createProduct", payload);
@@ -195,6 +205,7 @@ export default function AddProduct() {
       if (res.status === 201) {
         Alert.alert("Product Added successfully");
         clearFields();
+        router.push("/");
       }
     } catch (error) {
       console.log(error);
@@ -319,42 +330,6 @@ export default function AddProduct() {
                 </View>
               )}
             </View>
-            <View className="flex-1">
-              <Text className="mb-2 text-xs font-medium text-slate-500">
-                Color
-              </Text>
-              <Pressable
-                onPress={() => setShowColorOptions((prev) => !prev)}
-                className="flex-row items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3"
-              >
-                <Text
-                  className={`text-base ${color ? "text-slate-900" : "text-slate-400"}`}
-                >
-                  {color || "Select color"}
-                </Text>
-                <Ionicons
-                  name={showColorOptions ? "chevron-up" : "chevron-down"}
-                  size={18}
-                  color="#94a3b8"
-                />
-              </Pressable>
-              {showColorOptions && (
-                <View className="mt-2 rounded-2xl border border-slate-200 bg-white overflow-hidden">
-                  {colorOptions.map((option) => (
-                    <Pressable
-                      key={option}
-                      onPress={() => {
-                        setColor(option);
-                        setShowColorOptions(false);
-                      }}
-                      className="px-4 py-3 border-b border-slate-100 last:border-b-0"
-                    >
-                      <Text className="text-base text-slate-900">{option}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-            </View>
           </View>
         </View>
 
@@ -394,7 +369,10 @@ export default function AddProduct() {
                   key={`${image.uri}-${index}`}
                   className="h-20 w-20 overflow-hidden rounded-xl border border-slate-200"
                 >
-                  <Image source={{ uri: image.uri }} className="h-full w-full" />
+                  <Image
+                    source={{ uri: image.uri }}
+                    className="h-full w-full"
+                  />
                   {image.uploading && (
                     <View className="absolute inset-0 items-center justify-center bg-black/30">
                       <Text className="text-xs font-semibold text-white">
@@ -414,9 +392,9 @@ export default function AddProduct() {
               Save Draft
             </Text>
           </Pressable>
-          <Pressable className="flex-1 rounded-2xl bg-slate-900 px-4 py-4"
-          
-          onPress={handlePublish}
+          <Pressable
+            className="flex-1 rounded-2xl bg-slate-900 px-4 py-4"
+            onPress={handlePublish}
           >
             <Text className="text-center text-base font-semibold text-white">
               Publish
