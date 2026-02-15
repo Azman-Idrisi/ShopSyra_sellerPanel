@@ -4,7 +4,7 @@
     "slug": "shopsyra-seller",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/logo.png",
     "scheme": "shopsyra-seller",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -41,6 +41,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "9b6bdcba-4dc0-43c2-9fd8-b245253f39d0"
+      }
+    },
+    "owner": "azman_idrisi"
   }
 }
