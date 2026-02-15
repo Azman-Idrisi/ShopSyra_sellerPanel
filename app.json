@@ -4,7 +4,7 @@
     "slug": "shopsyra-seller",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/logo.png",
+    "icon": "./assets/images/icon.png",
     "scheme": "shopsyra-seller",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -16,7 +16,8 @@
         "backgroundColor": "#E6F4FE"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.azman_idrisi.shopsyraseller"
     },
     "web": {
       "output": "static",

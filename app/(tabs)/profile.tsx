@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
@@ -12,6 +11,8 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { api } from "@/api/client";
+import { useAuth } from "@/context/AuthContext";
 
 interface Seller {
   _id: string;
@@ -30,6 +31,7 @@ interface Seller {
 
 export default function Profile() {
   const router = useRouter();
+  const { logout } = useAuth();
   const [seller, setSeller] = useState<Seller | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -39,9 +41,9 @@ export default function Profile() {
 
   const loadSellerData = async () => {
     try {
-      const sellerData = await AsyncStorage.getItem("seller");
-      if (sellerData) {
-        setSeller(JSON.parse(sellerData));
+      const response = await api.get("/seller/me");
+      if (response.data.seller) {
+        setSeller(response.data.seller);
       }
     } catch (error) {
       console.error("Error loading seller data:", error);
@@ -65,11 +67,7 @@ export default function Profile() {
         style: "destructive",
         onPress: async () => {
           try {
-            await AsyncStorage.multiRemove([
-              "seller",
-              "isAuthenticated",
-              "mobile",
-            ]);
+            await logout();
             router.replace("/(auth)/signin");
           } catch (error) {
             console.error("Error signing out:", error);

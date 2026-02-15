@@ -1,18 +1,27 @@
 import { api } from "@/api/client";
-import { Link, router } from "expo-router";
+import { useAuth } from "@/context/AuthContext";
+import { Link, router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function SignupScreen() {
+  const { token: passedToken } = useLocalSearchParams<{ mobile?: string; token?: string }>();
+  const { setSession } = useAuth();
+
   const [mobile, setMobile] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
-  const [userType, setUserType] = useState("seller");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
 
   const validate = () => {
     if (!mobile.trim()) {
@@ -38,21 +47,36 @@ export default function SignupScreen() {
 
     setLoading(true);
     setError(null);
-    setSuccess(false);
 
     try {
+      // If we have a token from the sign-in OTP flow, use it for the API call
+      if (passedToken) {
+        api.defaults.headers.common.Authorization = `Bearer ${passedToken}`;
+      }
+
       await api.post("/seller/createSeller", {
-        mobile: mobile.trim(),
+        mobile: `+91${mobile.trim()}`,
         name: name.trim(),
         email: email.trim() || undefined,
         address: address.trim() || undefined,
-        userType: userType,
+        userType: "seller",
       });
-      setSuccess(true);
-      router.push({
-        pathname: "/(auth)/signin",
-        params: { mobile: mobile.trim() },
-      });
+
+      // If we have a token, save the session and go straight to tabs
+      if (passedToken) {
+        await setSession(passedToken);
+        router.replace("/(tabs)");
+      } else {
+        // No token - redirect to sign-in to authenticate
+        Alert.alert(
+          "Account Created",
+          "Your seller profile has been created. Please sign in.",
+        );
+        router.push({
+          pathname: "/(auth)/signin",
+          params: { mobile: mobile.trim() },
+        });
+      }
     } catch (err: any) {
       const message =
         err?.response?.data?.message || err?.message || "Signup failed";
@@ -81,15 +105,7 @@ export default function SignupScreen() {
         {error ? (
           <View className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3">
             <Text className="text-sm text-rose-700">
-              Error in signing up. Please try again.
-            </Text>
-          </View>
-        ) : null}
-
-        {success ? (
-          <View className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-            <Text className="text-sm text-emerald-700">
-              Seller profile created successfully.
+              {error}
             </Text>
           </View>
         ) : null}
@@ -102,7 +118,7 @@ export default function SignupScreen() {
             <TextInput
               value={mobile}
               onChangeText={setMobile}
-              placeholder="e.g. +91 98765 43210"
+              placeholder="e.g. 98765 43210"
               keyboardType="phone-pad"
               className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-900"
             />

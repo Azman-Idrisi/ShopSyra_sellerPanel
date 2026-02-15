@@ -1,18 +1,27 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Link, useRouter } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "../../../api/client";
+import { useAuth } from "@/context/AuthContext";
 
 export default function SigninScreen() {
   const router = useRouter();
+  const { setSession } = useAuth();
   const [mobile, setMobile] = useState("");
   const [otp, setOtp] = useState("");
   const [isOtpSent, setIsOtpSent] = useState(false);
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
-
 
   const handleSendOtp = async () => {
     if (!mobile.trim()) {
@@ -20,7 +29,6 @@ export default function SigninScreen() {
       return;
     }
 
-    // Basic validation for mobile number
     if (mobile.length < 10) {
       Alert.alert("Error", "Please enter a valid mobile number");
       return;
@@ -34,22 +42,28 @@ export default function SigninScreen() {
 
       if (response.data.success) {
         setIsOtpSent(true);
-        Alert.alert("Success", "OTP sent successfully to your mobile number");
+        Alert.alert(
+          "Success",
+          "OTP sent successfully to your mobile number",
+        );
       } else {
-        Alert.alert("Error", response.data.message || "Failed to send OTP");
+        Alert.alert(
+          "Error",
+          response.data.message || "Failed to send OTP",
+        );
       }
     } catch (error: any) {
       console.error("Send OTP error:", error);
       Alert.alert(
         "Error",
-        error.response?.data?.message || "Failed to send OTP. Please try again."
+        error.response?.data?.message ||
+          "Failed to send OTP. Please try again.",
       );
     } finally {
       setIsSendingOtp(false);
     }
   };
 
-  // Verify OTP and sign in
   const handleVerifyAndSignIn = async () => {
     if (!mobile.trim() || !otp.trim()) {
       Alert.alert("Error", "Please enter both mobile number and OTP");
@@ -57,90 +71,89 @@ export default function SigninScreen() {
     }
 
     if (otp.length !== 4) {
-      Alert.alert("Error", "Please enter a valid 6-digit OTP");
+      Alert.alert("Error", "Please enter a valid 4-digit OTP");
       return;
     }
 
     try {
       setIsVerifying(true);
 
-     const body = {
-      mobile: `+91${mobile.trim()}`,
-      otp: otp.trim(),
-     };
-     
-      const verifyResponse = await api.post("/otp/verify-otp", body);
+      // Step 1: Verify OTP and get token
+      const verifyResponse = await api.post("/otp/verify-otp", {
+        mobile: `+91${mobile.trim()}`,
+        otp: otp.trim(),
+        userType: "seller",
+      });
 
       if (!verifyResponse.data.success) {
         Alert.alert("Error", "Invalid OTP. Please try again.");
         return;
       }
 
-      // Step 2: Check if seller exists
-      const sellerResponse = await api.get(`/seller/+91${mobile.trim()}`);
+      // Extract token from response
+      const token =
+        verifyResponse.data?.token ??
+        verifyResponse.data?.accessToken ??
+        verifyResponse.data?.jwt ??
+        verifyResponse.data?.authToken;
 
-      if (sellerResponse.data.seller) {
-        // Seller exists - Sign in
-        const seller = sellerResponse.data.seller;
-
-        // Store seller data in AsyncStorage
-        await AsyncStorage.setItem("seller", JSON.stringify(seller));
-        await AsyncStorage.setItem("isAuthenticated", "true");
-        await AsyncStorage.setItem("mobile", mobile.trim());
-        router.replace("/(tabs)");
-        
-      } else {
-        // Seller doesn't exist - redirect to signup
+      if (!token) {
         Alert.alert(
-          "Account Not Found",
-          "No seller account found with this mobile number. Please create an account.",
-          [
-            {
-              text: "Cancel",
-              style: "cancel",
-            },
-            {
-              text: "Sign Up",
-              onPress: () => {
-                router.push({
-                  pathname: "/(auth)/signup",
-                  params: { mobile: mobile.trim() },
-                });
-              },
-            },
-          ]
+          "Session Error",
+          "Token missing in response. Please try again.",
         );
+        return;
       }
-    } catch (error: any) {
-      console.error("Verify & Sign In error:", error);
-      
-      if (error.response?.status === 404) {
-        // Seller not found
+
+      // Set the token so authenticated requests work
+      api.defaults.headers.common.Authorization = `Bearer ${token}`;
+
+      // Step 2: Check if seller exists
+      // First try the verify response, then fall back to fetching from /seller/me
+      let seller = verifyResponse.data.seller ?? null;
+
+      if (!seller) {
+        try {
+          const sellerResponse = await api.get("/seller/me");
+          seller = sellerResponse.data.seller ?? null;
+        } catch {
+          // Seller not found or token invalid for seller lookup
+          seller = null;
+        }
+      }
+
+      if (seller) {
+        // Seller exists - save session, store seller data, and navigate
+        await AsyncStorage.setItem("seller", JSON.stringify(seller));
+        await setSession(token);
+        router.replace("/(tabs)");
+      } else {
+        // Seller doesn't exist - redirect to signup with the token
+        delete api.defaults.headers.common.Authorization;
         Alert.alert(
           "Account Not Found",
           "No seller account found. Would you like to create one?",
           [
-            {
-              text: "Cancel",
-              style: "cancel",
-            },
+            { text: "Cancel", style: "cancel" },
             {
               text: "Sign Up",
               onPress: () => {
                 router.push({
                   pathname: "/(auth)/signup",
-                  params: { mobile: mobile.trim() },
+                  params: { mobile: mobile.trim(), token },
                 });
               },
             },
-          ]
-        );
-      } else {
-        Alert.alert(
-          "Error",
-          error.response?.data?.message || "Failed to sign in. Please try again."
+          ],
         );
       }
+    } catch (error: any) {
+      console.error("Verify & Sign In error:", error);
+      Alert.alert(
+        "Error",
+        error.response?.data?.message ||
+          "Failed to sign in. Please try again.",
+      );
     } finally {
       setIsVerifying(false);
     }
@@ -187,9 +200,9 @@ export default function SigninScreen() {
               <TextInput
                 value={otp}
                 onChangeText={setOtp}
-                placeholder="Enter 6-digit code"
+                placeholder="Enter 4-digit code"
                 keyboardType="number-pad"
-                maxLength={6}
+                maxLength={4}
                 className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-900 tracking-[3px]"
               />
               <Text className="mt-2 text-xs text-slate-500">
